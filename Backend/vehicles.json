@@ -1,0 +1,13 @@
+[
+  {
+    "id": "1778337689964",
+    "type": "JCB",
+    "price": 10000,
+    "phone": "7828484941",
+    "village": "Bahrol",
+    "lat": 24.05,
+    "lng": 78.6333,
+    "image": "http://localhost:5000/uploads/1778337689960-JCB Kishan Mishra.webp",
+    "available": true
+  }
+]
