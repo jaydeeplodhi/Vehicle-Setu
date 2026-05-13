@@ -2,10 +2,10 @@ import { useState, useEffect } from 'react'
 import './App.css'
 import { SignedIn, SignedOut, SignInButton, UserButton } from "@clerk/clerk-react";
 
-// अपनी Backend की Render लिंक यहाँ डालें
 const API_BASE_URL = "https://vehicle-setu-backend.onrender.com";
 
 function App() {
+  
   const [lang, setLang] = useState('hi');
   const [role, setRole] = useState('');
   const [activeTab, setActiveTab] = useState('search');
@@ -16,16 +16,57 @@ function App() {
   const [userCoords, setUserCoords] = useState({ lat: null, lng: null });
   const [results, setResults] = useState([]);
   const [maxDist, setMaxDist] = useState(50);
+
+  // --- New States for Calendar and Time ---
+  const [searchDate, setSearchDate] = useState('');
+  const [bookingTime, setBookingTime] = useState('');
   
-  // New States for Hierarchical Location
   const [villageList, setVillageList] = useState([]);
   const [locationInfo, setLocationInfo] = useState({ state: '', district: '', block: '' });
-
   const [formData, setFormData] = useState({ type: '', price: '', phone: '', village: '', lat: '', lng: '', image: null });
 
+  const machineCatalog = [
+    {
+      category: { hi: "🚜 खेती की मशीनें", en: "Agriculture Machines" },
+      logo: "🚜",
+      color: "#2ecc71",
+      items: ["Tractor", "Mini Tractor", "Power Tiller", "Rotavator", "Cultivator", "Harrow", "Disc Harrow", "MB Plough", "Seed Drill", "Happy Seeder", "Paddy Transplanter", "Reaper", "Combine Harvester", "Thresher", "Baler", "Agricultural Drone"]
+    },
+    {
+      category: { hi: "🏗️ निर्माण मशीनें", en: "Construction Machines" },
+      logo: "🏗️",
+      color: "#f1c40f",
+      items: ["JCB / Backhoe Loader", "Excavator", "Bulldozer", "Road Roller", "Cement Mixture Machine", "Concrete Pump", "Crane", "Tower Crane", "Wheel Loader", "Dumper", "Asphalt Paver", "Generator"]
+    },
+    {
+      category: { hi: "🚚 परिवहन वाहन", en: "Transport Vehicles" },
+      logo: "🚛",
+      color: "#3498db",
+      items: ["Bolero Pickup", "Tata Ace", "Truck", "Mini Truck", "Dumper Truck", "Tractor Trolley", "Auto Rickshaw", "E-Rickshaw", "Tempo", "Delivery Van", "Ambulance"]
+    },
+    {
+      category: { hi: "💧 सिंचाई और पानी", en: "Water & Irrigation" },
+      logo: "🌊",
+      color: "#1abc9c",
+      items: ["Borewell Machine", "Water Pump", "Submersible Pump", "Diesel Pump Set", "Sprinkler System", "Drip Irrigation System", "Water Tanker", "Pipeline Laying Machine"]
+    },
+    {
+      category: { hi: "🐄 डेयरी और पशुपालन", en: "Livestock & Dairy" },
+      logo: "🐄",
+      color: "#e67e22",
+      items: ["Milking Machine", "Fodder Cutter", "Feed Mixing Machine", "Poultry Feed Machine", "Cow Dung Machine"]
+    },
+    {
+      category: { hi: "🛠️ इंडस्ट्रियल मशीनें", en: "Industrial Machines" },
+      logo: "🔧",
+      color: "#95a5a6",
+      items: ["Generator Set", "Lathe Machine", "Drilling Machine", "Grinding Machine", "Air Compressor", "Hydraulic Jack", "Pressure Washer"]
+    }
+  ];
+
   const t = {
-    hi: { owner: "🏢 मालिक", customer: "🚜 ग्राहक", search: "खोजें...", pincode: "पिनकोड", book: "बुक करें", accept: "स्वीकारें", reject: "मना करें", avail: "चालू", off: "बंद", status: "बुकिंग स्थिति", myVehicles: "मेरी मशीनें", register: "पंजीकरण", selectVillage: "-- गाँव चुनें --" },
-    en: { owner: "🏢 OWNER", customer: "🚜 CUSTOMER", search: "Search...", pincode: "Pincode", book: "Book", accept: "Accept", reject: "Reject", avail: "Active", off: "Off", status: "Booking Status", myVehicles: "My Vehicles", register: "Register", selectVillage: "-- Select Village --" }
+    hi: { owner: "🏢 मालिक", customer: "🚜 ग्राहक", search: "खोजें...", pincode: "पिनकोड", book: "बुक करें", accept: "स्वीकारें", reject: "मना करें", avail: "चालू", off: "बंद", status: "बुकिंग स्थिति", myVehicles: "मेरी मशीनें", register: "पंजीकरण", selectVillage: "-- गाँव चुनें --", catalog: "मशीन लिस्ट", dateLabel: "तारीख चुनें", timeLabel: "समय" },
+    en: { owner: "🏢 OWNER", customer: "🚜 CUSTOMER", search: "Search...", pincode: "Pincode", book: "Book", accept: "Accept", reject: "Reject", avail: "Active", off: "Off", status: "Booking Status", myVehicles: "My Vehicles", register: "Register", selectVillage: "-- Select Village --", catalog: "Catalog", dateLabel: "Select Date", timeLabel: "Time" }
   };
 
   const fetchDash = async () => {
@@ -46,39 +87,22 @@ function App() {
   const handlePincode = async (pin, mode) => {
     if (pin.length === 6) {
       try {
-        // Fetch Coordinates for Distance Calculation
         const zRes = await fetch(`https://api.zippopotam.us/in/${pin}`);
         const zData = await zRes.json();
-        
-        // Fetch All Villages/Post Offices for that Pincode
         const pRes = await fetch(`https://api.postalpincode.in/pincode/${pin}`);
         const pData = await pRes.json();
 
         if (pData[0].Status === "Success") {
           const offices = pData[0].PostOffice;
           const info = offices[0];
-          
-          // Set Location Hierarchy
-          setLocationInfo({
-            state: info.State,
-            district: info.District,
-            block: info.Block
-          });
-
-          // Extract all unique village names from the pincode response
+          setLocationInfo({ state: info.State, district: info.District, block: info.Block });
           const villages = offices.map(office => office.Name);
           setVillageList(villages);
 
           if (mode === 'register') {
-            setFormData({ 
-              ...formData, 
-              lat: zData.places[0].latitude, 
-              lng: zData.places[0].longitude,
-              village: '' // User will select from dropdown
-            });
+            setFormData({ ...formData, lat: zData.places[0].latitude, lng: zData.places[0].longitude, village: '' });
           } else {
             setUserCoords({ lat: zData.places[0].latitude, lng: zData.places[0].longitude });
-            // For customer search, we can auto-set the first one or let them select
             setUserVillage(info.Name);
           }
         }
@@ -120,29 +144,61 @@ function App() {
             <div>
               <button className="btn-back" onClick={() => { setRole(''); setShowDashboard(false); setVillageList([]); setLocationInfo({state:'', district:'', block:''}); }}>← Back</button>
 
+              {activeTab === 'catalog' && (
+                <div className="view">
+                  <h2 className="catalog-title">{t[lang].catalog} 📖</h2>
+                  {machineCatalog.map((cat, idx) => (
+                    <div key={idx} className="catalog-section">
+                      <h3 className="cat-head" style={{borderLeft: `4px solid ${cat.color}`, color: cat.color}}>
+                        {cat.logo} {cat.category[lang]}
+                      </h3>
+                      <div className="cat-grid">
+                        {cat.items.map((item, i) => (
+                          <div key={i} className="cat-item-card" style={{"--hover-color": cat.color}}>
+                             <div className="cat-icon-wrapper" style={{borderColor: `${cat.color}44`}}>
+                                <span className="cat-icon-main">{cat.logo}</span>
+                             </div>
+                             <span className="cat-name">{item}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
               {role === 'customer' && activeTab === 'search' && (
                 <div className="view glass-card">
-                  <input type="number" placeholder={t[lang].pincode} onChange={e => handlePincode(e.target.value, 'search')} className="inp" />
-                  
+                  <div className="search-filters-grid">
+                    <input type="number" placeholder={t[lang].pincode} onChange={e => handlePincode(e.target.value, 'search')} className="inp" />
+                    <div className="date-box">
+                      <label className="input-label">{t[lang].dateLabel}</label>
+                      <input type="date" className="inp date-inp" onChange={(e) => setSearchDate(e.target.value)} />
+                    </div>
+                  </div>
+
                   {villageList.length > 0 && (
                     <select className="inp" onChange={(e) => setUserVillage(e.target.value)}>
                         <option value="">{t[lang].selectVillage}</option>
                         {villageList.map((v, i) => <option key={i} value={v}>{v}</option>)}
                     </select>
                   )}
-
                   {userVillage && <p className="village-text">📍 {userVillage} {locationInfo.district ? `(${locationInfo.district})` : ''}</p>}
                   
                   <div className="pill-container">
                     {[10, 20, 50, 100].map(km => <button key={km} onClick={() => setMaxDist(km)} className={maxDist === km ? "pill active" : "pill"}>{km}KM</button>)}
                   </div>
+                  
                   <input placeholder={t[lang].search} onChange={async (e) => {
-                    const query = e.target.value;
+                    const query = e.target.value.toLowerCase().trim();
                     if (query.length > 1) {
                       const res = await fetch(`${API_BASE_URL}/search?type=${query}&userLat=${userCoords.lat}&userLng=${userCoords.lng}&maxDist=${maxDist}`);
                       setResults(await res.json());
+                    } else if (query.length === 0) {
+                      setResults([]);
                     }
                   }} className="inp" />
+
                   <div className="machine-grid">
                     {results.map(v => (
                       <div key={v.id} className="machine-card">
@@ -151,11 +207,30 @@ function App() {
                           <h4>{v.type} ⭐{v.rating.toFixed(1)}</h4>
                           <p>📍 {v.village} ({v.distance} KM)</p>
                           <p className="price-tag">₹{v.price}</p>
+                          
+                          <div className="time-selector">
+                            <label className="input-label">{t[lang].timeLabel}</label>
+                            <input type="time" className="inp time-inp" onChange={(e) => setBookingTime(e.target.value)} />
+                          </div>
+
                           <button onClick={async () => {
+                            if(!searchDate || !bookingTime) return alert(lang === 'hi' ? "तारीख और समय चुनें!" : "Select Date and Time!");
                             const p = prompt("Mobile Number:");
                             if (p) {
-                              await fetch(`${API_BASE_URL}/book`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ customerPhone: p, ownerPhone: v.phone, vehicleType: v.type, village: v.village, status: 'Pending' }) });
-                              window.open(`https://wa.me/91${v.phone}?text=नमस्ते, मुझे ${v.type} चाहिए।`, '_blank');
+                              await fetch(`${API_BASE_URL}/book`, { 
+                                method: 'POST', 
+                                headers: { 'Content-Type': 'application/json' }, 
+                                body: JSON.stringify({ 
+                                  customerPhone: p, 
+                                  ownerPhone: v.phone, 
+                                  vehicleType: v.type, 
+                                  village: v.village, 
+                                  status: 'Pending',
+                                  date: searchDate,
+                                  time: bookingTime
+                                }) 
+                              });
+                              window.open(`https://wa.me/91${v.phone}?text=नमस्ते, मुझे ${v.type} चाहिए। तारीख: ${searchDate}, समय: ${bookingTime}`, '_blank');
                             }
                           }} className="btn-main">{t[lang].book}</button>
                         </div>
@@ -195,6 +270,7 @@ function App() {
                             <span style={{ color: b.status === 'Accepted' ? '#2ecc71' : b.status === 'Rejected' ? '#ff4757' : '#f1c40f', fontWeight: '900' }}>{b.status}</span>
                           </div>
                           <p style={{ fontSize: '0.9rem', opacity: '0.9' }}>📞 {role === 'owner' ? b.customerPhone : b.ownerPhone} | 📍 {b.village}</p>
+                          <p style={{ fontSize: '0.8rem', color: 'var(--accent)' }}>📅 {b.date} | ⏰ {b.time}</p>
                           {role === 'owner' && b.status === 'Pending' && (
                             <div style={{ display: 'flex', gap: '10px', marginTop: '15px' }}>
                               <button onClick={() => handleBookingAction(b._id, 'Accepted')} className="btn-main" style={{ background: '#2ecc71' }}>{t[lang].accept}</button>
@@ -221,41 +297,53 @@ function App() {
                     </p>
                   )}
 
-                  {villageList.length > 0 ? (
+                  {villageList.length > 0 && (
                     <select 
                         className="inp" 
                         value={formData.village} 
                         onChange={e => setFormData({ ...formData, village: e.target.value })}
-                        required
                     >
                         <option value="">{t[lang].selectVillage}</option>
                         {villageList.map((v, i) => <option key={i} value={v}>{v}</option>)}
                     </select>
-                  ) : (
-                    <input value={formData.village} readOnly className="inp" placeholder="Village Name" />
                   )}
 
                   <input placeholder="WhatsApp" onChange={e => setFormData({ ...formData, phone: e.target.value })} className="inp" />
                   <input type="file" onChange={e => setFormData({ ...formData, image: e.target.files[0] })} className="inp" style={{ padding: '10px' }} />
                   <button onClick={async () => {
-                    if(!formData.village) return alert("Please select a village!");
                     const d = new FormData();
                     Object.keys(formData).forEach(k => d.append(k, formData[k]));
-                    const res = await fetch(`${API_BASE_URL}/register`, { method: 'POST', body: d });
-                    const result = await res.json();
-                    if(result.message === "Success") {
-                        alert("Success!"); setActiveTab('dashboard');
-                    }
+                    await fetch(`${API_BASE_URL}/register`, { method: 'POST', body: d });
+                    alert("Success!"); setActiveTab('dashboard');
                   }} className="btn-main">Register</button>
                 </div>
               )}
             </div>
           )}
         </main>
+        
         <nav className="bottom-nav">
-          <button onClick={() => setActiveTab('search')} className={activeTab === 'search' ? "active" : ""}>🔍</button>
-          {role === 'owner' && <button onClick={() => setActiveTab('register')} className={activeTab === 'register' ? "active" : ""}>➕</button>}
-          <button onClick={() => setActiveTab('dashboard')} className={activeTab === 'dashboard' ? "active" : ""}>📊</button>
+          <button onClick={() => setActiveTab('search')} className={activeTab === 'search' ? "active" : ""}>
+            <span className="nav-icon">🔍</span>
+            <span className="nav-label">खोजें</span>
+          </button>
+          
+          <button onClick={() => setActiveTab('catalog')} className={activeTab === 'catalog' ? "active" : ""}>
+            <span className="nav-icon">📋</span>
+            <span className="nav-label">मशीन लिस्ट</span>
+          </button>
+          
+          {role === 'owner' && (
+            <button onClick={() => setActiveTab('register')} className={activeTab === 'register' ? "active" : ""}>
+              <span className="nav-icon">➕</span>
+              <span className="nav-label">मशीन जोड़ें</span>
+            </button>
+          )}
+          
+          <button onClick={() => setActiveTab('dashboard')} className={activeTab === 'dashboard' ? "active" : ""}>
+            <span className="nav-icon">📊</span>
+            <span className="nav-label">स्टेटस</span>
+          </button>
         </nav>
       </SignedIn>
 
@@ -263,7 +351,6 @@ function App() {
         <div className="login-screen">
           <div className="welcome-box">
             <h1>Vehicle-Setu 🚜</h1>
-            <p>भारत का अपना मशीनरी बुकिंग प्लेटफार्म। अब खेती और निर्माण हुआ आसान।</p>
             <SignInButton mode="modal">
               <button className="btn-main">शुरू करें / Login</button>
             </SignInButton>
